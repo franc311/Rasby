@@ -1,0 +1,977 @@
+package Compilador;
+import Compilador.CTD;
+import Compilador.CTD2;
+import Compilador.CodigoFinal;
+import Compilador.CodigoIntermedio;
+import Compilador.CompLex;
+import Compilador.Cuadrupla;
+import Compilador.Expresion;
+import Compilador.InformacionCodigo;
+import Compilador.Lexicos;
+import Compilador.Lista;
+import Compilador.OutputDinamica;
+import Compilador.OutputEstatica;
+import Compilador.OutputLexico2;
+import Compilador.Pila;
+import Compilador.Tabla;
+import Compilador.Textos;
+import Compilador.Tres;
+import java_cup.runtime.*;
+import java.util.*;
+import java.io.*;
+
+
+action code {:
+    Vector pT = new Vector();
+    int actualFinIf = 0;
+    int actualFinWhile = 0;
+    public String finIf() {
+        return "S" + actualFinIf;
+    }
+    public String finWhile() {
+        return "W" + actualFinWhile;
+    }
+    String eV, eF;
+    Expresion condicionX;
+    class DatosCASE {
+        String tmpExpr, etqFinal; 
+    }
+    class BloqueCondicion { 
+        String etqVerdad, etqFalso;
+    }
+    public int actualTmp=0; 
+    public String nuevaTmp() {
+        return "tmp"+(++actualTmp); 
+    }
+    public String actualTmp() {
+        return "tmp"+actualTmp; 
+    }
+    public int actualEtq=0; 
+    public String nuevaEtq() { 
+        return "L"+(++actualEtq);
+    }
+    private String generarTerceto(String terceto) {
+        String tmp = nuevaTmp(); 
+        System.out.println(tmp + terceto); 
+        return tmp;
+    }
+    private BloqueCondicion generarCondicion( String Rvalor1, String condicion, String Rvalor2) { 
+        BloqueCondicion etqs = new BloqueCondicion();
+        etqs.etqVerdad = nuevaEtq(); 
+        etqs.etqFalso = nuevaEtq();
+        System.out.println("\tif "+ Rvalor1 + condicion + Rvalor2 + " goto "+ etqs.etqVerdad);
+        System.out.println("\tgoto "+ etqs.etqFalso);
+        return etqs; 
+    }
+        Tabla tabla;
+        int cuentaWhiles;
+        int cuentaDirecciones;
+        CodigoIntermedio codigoIntermedio;
+        OutputLexico2 opL;
+        OutputDinamica od;
+        OutputEstatica os;
+        CTD ctd;
+        CTD2 ctd2;
+        int cuentaIf;
+        Pila pilaIf;
+        int cuentaBucle;
+        Pila pilaBucle;
+        int cuentaCadenas;
+        Lista listaCadenas;
+        boolean imprimirEntero;
+	void inicializar() {
+            tabla = new Tabla();
+            cuentaWhiles = 0;
+            cuentaDirecciones = -4;
+            cuentaIf = 0;
+            pilaIf = new Pila();
+            cuentaBucle = 0;
+            pilaBucle = new Pila();
+            cuentaCadenas = 0;
+            listaCadenas = new Lista();
+            imprimirEntero = false;
+            String nombre = parser.nombreFichero.substring(0, parser.nombreFichero.lastIndexOf("."));
+            codigoIntermedio = new CodigoIntermedio(nombre + ".ci");
+            try {
+                codigoIntermedio.abrirFicheroEscritura();
+            } catch(IOException e) {
+                System.out.println(Textos.ficheroCiNoExiste);
+                codigoIntermedio.cerrarFicheroEscritura();
+            }
+            ctd = new CTD(nombre + ".3dir");
+            try {
+                ctd.abrirFicheroEscritura();
+            } catch(IOException e) {
+                System.out.println(Textos.ficheroCiNoExiste);
+                ctd.cerrarFicheroEscritura();
+            }
+            ctd2 = new CTD2(nombre + ".3dir2");
+            try {
+                ctd2.abrirFicheroEscritura();
+            } catch(IOException e) {
+                System.out.println(Textos.ficheroCiNoExiste);
+                ctd2.cerrarFicheroEscritura();
+            }
+            opL = new OutputLexico2(nombre + ".lexemas");
+            try {
+                opL.abrirFicheroEscritura();
+            } catch(IOException e) {
+                System.out.println(Textos.ficheroCiNoExiste);
+                opL.cerrarFicheroEscritura();
+            }
+            od = new OutputDinamica(nombre + ".dinamica");
+            try {
+                od.abrirFicheroEscritura();
+            } catch(IOException e) {
+                System.out.println(Textos.ficheroCiNoExiste);
+                opL.cerrarFicheroEscritura();
+            }
+            os = new OutputEstatica(nombre + ".estatica");
+            try {
+                os.abrirFicheroEscritura();
+            } catch(IOException e) {
+                System.out.println(Textos.ficheroCiNoExiste);
+                opL.cerrarFicheroEscritura();
+            }
+	}
+        
+        void traspasarLexemas() {
+            opL.guardarVector(Lexicos.getLexemas());
+        }
+
+        
+        boolean existeSimbolo(String id) {
+            return tabla.existeSimbolo(id);
+        }
+        
+        void addSimbolo(String id) {
+            tabla.addSimbolo(id);
+        }
+
+        void setDireccionSimbolo(String id, int dir) {
+            tabla.setDireccionSimbolo(id, dir);
+        }
+        
+        void setValorSimbolo(String id, int valor) {
+            tabla.setValorSimbolo(id, valor);
+        }
+
+        Expresion suma(Expresion e1, Expresion e2) {
+            String tmp = generarTerceto("=" + e1.getValor() + "+" + e2.getValor());
+            ctd.guardarCTD(new Tres(actualTmp(), e1.getValor(), "+", e2.getValor(), (e1.getResultado() + e2.getResultado()), "expresion"));
+            ctd2.guardarCTD(new Tres(actualTmp(), CompLex.checarComponenteLexico(e1.getValor()), "+", CompLex.checarComponenteLexico(e2.getValor()), (e1.getResultado() + e2.getResultado()), "expresion"));
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("SUMAR",
+                    String.valueOf(e1.getDireccion()),
+                    String.valueOf(e2.getDireccion()),
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, "tmp"+actualTmp , e1.getResultado() + e2.getResultado());
+        }
+        
+        Expresion resta(Expresion e1, Expresion e2) {
+            String tmp = generarTerceto("="+e1.getValor() + "-" + e2.getValor());
+            ctd.guardarCTD(new Tres(actualTmp(), e1.getValor(), "-", e2.getValor(), (e1.getResultado() - e2.getResultado()), "expresion"));
+            ctd2.guardarCTD(new Tres(actualTmp(), CompLex.checarComponenteLexico(e1.getValor()), "-", CompLex.checarComponenteLexico(e2.getValor()), (e1.getResultado() - e2.getResultado()), "expresion"));
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("RESTA",
+                    String.valueOf(e1.getDireccion()),
+                    String.valueOf(e2.getDireccion()),
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, "tmp"+actualTmp, e1.getResultado() - e2.getResultado());
+        }
+        
+        Expresion producto(Expresion e1, Expresion e2) {
+            String tmp = generarTerceto("="+e1.getValor() + "*" + e2.getValor());
+            ctd.guardarCTD(new Tres(actualTmp(), e1.getValor(), "*", e2.getValor(), (e1.getResultado() * e2.getResultado()), "expresion"));
+            ctd2.guardarCTD(new Tres(actualTmp(), CompLex.checarComponenteLexico(e1.getValor()), "*", CompLex.checarComponenteLexico(e2.getValor()), (e1.getResultado() * e2.getResultado()), "expresion"));
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("MULTIPLICAR",
+                    String.valueOf(e1.getDireccion()),
+                    String.valueOf(e2.getDireccion()),
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, "tmp"+actualTmp, e1.getResultado() * e2.getResultado());
+        }
+
+        Expresion division(Expresion e1, Expresion e2) {
+            String tmp = generarTerceto("="+e1.getValor() + "/" + e2.getValor());
+            ctd.guardarCTD(new Tres(actualTmp(), e1.getValor(), "/", e2.getValor(), (e1.getResultado() / e2.getResultado()), "expresion"));
+            ctd.guardarCTD(new Tres(actualTmp(), CompLex.checarComponenteLexico(e1.getValor()), "/", CompLex.checarComponenteLexico(e2.getValor()), (e1.getResultado() / e2.getResultado()), "expresion"));
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("DIVIDIR",
+                    String.valueOf(e1.getDireccion()),
+                    String.valueOf(e2.getDireccion()),
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, "tmp"+actualTmp, e1.getResultado() / e2.getResultado());
+        }
+
+        Expresion entero(String e) {
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("CARGAR_VALOR",
+                    e,
+                    null,
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, e, Integer.parseInt(e));
+        }
+
+        Expresion identificador(String id) {
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("CARGAR_DIRECCION",
+                    String.valueOf((tabla.getSimbolo(id)).getDireccion()),
+                    null,
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, id);
+        }
+
+        Expresion or(Expresion c1, Expresion c2) {
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("OR",
+                    String.valueOf(c1.getDireccion()),
+                    String.valueOf(c2.getDireccion()),
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, c2.etqVerdad, c2.etqFalso);
+        }
+        
+        Expresion and(Expresion c1, Expresion c2) {
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("AND",
+                    String.valueOf(c1.getDireccion()),
+                    String.valueOf(c2.getDireccion()),
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, c2.etqVerdad, c2.etqFalso);
+        }
+        
+        Expresion mayor(Expresion e1, Expresion e2) {
+            String eV = nuevaEtq();
+            String eF = nuevaEtq();
+            System.out.println("if "+ e1.getValor() + ">" + e2.getValor() + " goto "+ eV);
+            System.out.println("goto "+ eF);
+            ctd.guardarCTD(new Tres(e1.getValor(), ">", e2.getValor(), eV, "condicion"));
+            ctd.guardarCTD(new Tres(eF, "salto"));
+            ctd2.guardarCTD(new Tres(CompLex.checarComponenteLexico(e1.getValor()), ">", CompLex.checarComponenteLexico(e2.getValor()), eV, "condicion"));
+            ctd2.guardarCTD(new Tres(eF, "salto"));
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("MAYOR",
+                    String.valueOf(e1.getDireccion()),
+                    String.valueOf(e2.getDireccion()),
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, eV, eF);
+        }
+        
+        Expresion mayorIgual(Expresion e1, Expresion e2) {
+            String eV = nuevaEtq();
+            String eF = nuevaEtq();
+            System.out.println("if "+ e1.getValor() + ">=" + e2.getValor() + " goto "+ eV);
+            System.out.println("goto "+ eF);
+            ctd.guardarCTD(new Tres(e1.getValor(), ">=", e2.getValor(), eV, "condicion"));
+            ctd.guardarCTD(new Tres(eF, "salto"));
+            ctd2.guardarCTD(new Tres(CompLex.checarComponenteLexico(e1.getValor()), ">=", CompLex.checarComponenteLexico(e2.getValor()), eV, "condicion"));
+            ctd2.guardarCTD(new Tres(eF, "salto"));
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("MAYORI",
+                    String.valueOf(e1.getDireccion()),
+                    String.valueOf(e2.getDireccion()),
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, eV, eF);
+        }
+
+        Expresion menor(Expresion e1, Expresion e2) {
+            String eV = nuevaEtq();
+            String eF = nuevaEtq();
+            System.out.println("if "+ e1.getValor() + "<" + e2.getValor() + " goto "+ eV);
+            System.out.println("goto "+ eF);
+            ctd.guardarCTD(new Tres(e1.getValor(), "<", e2.getValor(), eV, "condicion"));
+            ctd.guardarCTD(new Tres(eF, "salto"));
+            ctd2.guardarCTD(new Tres(CompLex.checarComponenteLexico(e1.getValor()), "<", CompLex.checarComponenteLexico(e2.getValor()), eV, "condicion"));
+            ctd2.guardarCTD(new Tres(eF, "salto"));
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("MENOR",
+                    String.valueOf(e1.getDireccion()),
+                    String.valueOf(e2.getDireccion()),
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, eV, eF);
+        }
+
+        Expresion menorIgual(Expresion e1, Expresion e2) {
+            String eV = nuevaEtq();
+            String eF = nuevaEtq();
+            System.out.println("if "+ e1.getValor() + "<=" + e2.getValor() + " goto "+ eV);
+            System.out.println("goto "+ eF);
+            ctd.guardarCTD(new Tres(e1.getValor(), "<=", e2.getValor(), eV, "condicion"));
+            ctd.guardarCTD(new Tres(eF, "salto"));
+            ctd2.guardarCTD(new Tres(CompLex.checarComponenteLexico(e1.getValor()), "<=", CompLex.checarComponenteLexico(e2.getValor()), eV, "condicion"));
+            ctd2.guardarCTD(new Tres(eF, "salto"));
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("MENORI",
+                    String.valueOf(e1.getDireccion()),
+                    String.valueOf(e2.getDireccion()),
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, eV, eF);
+        }
+
+        Expresion igual(Expresion e1, Expresion e2) {
+            String eV = nuevaEtq();
+            String eF = nuevaEtq();
+            System.out.println("if "+ e1.getValor() + "==" + e2.getValor() + " goto "+ eV);
+            System.out.println("goto "+ eF);
+            ctd.guardarCTD(new Tres(e1.getValor(), "==", e2.getValor(), eV, "condicion"));
+            ctd.guardarCTD(new Tres(eF, "salto"));
+            ctd2.guardarCTD(new Tres(CompLex.checarComponenteLexico(e1.getValor()), "==", CompLex.checarComponenteLexico(e2.getValor()), eV, "condicion"));
+            ctd2.guardarCTD(new Tres(eF, "salto"));
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("IGUAL",
+                    String.valueOf(e1.getDireccion()),
+                    String.valueOf(e2.getDireccion()),
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, eV, eF);
+        }
+        
+        Expresion distinto(Expresion e1, Expresion e2) {
+            String eV = nuevaEtq();
+            String eF = nuevaEtq();
+            System.out.println("if "+ e1.getValor() + "!=" + e2.getValor() + " goto "+ eV);
+            System.out.println("goto "+ eF);
+            ctd.guardarCTD(new Tres(e1.getValor(), "!=", e2.getValor(), eV, "condicion"));
+            ctd.guardarCTD(new Tres(eF, "salto"));
+            ctd2.guardarCTD(new Tres(CompLex.checarComponenteLexico(e1.getValor()), "!=", CompLex.checarComponenteLexico(e2.getValor()), eV, "condicion"));
+            ctd2.guardarCTD(new Tres(eF, "salto"));
+            cuentaDirecciones+=4;
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("DISTINTO",
+                    String.valueOf(e1.getDireccion()),
+                    String.valueOf(e2.getDireccion()),
+                    String.valueOf(cuentaDirecciones)));
+            return new Expresion(cuentaDirecciones, eV, eF);
+        }
+
+        void asignacion(String id, Expresion e) {
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla("CARGAR_DIRECCION",
+                    String.valueOf(e.getDireccion()),
+                    null,
+                    String.valueOf((tabla.getSimbolo(id)).getDireccion())));
+            
+        }
+
+        void cerrarCI() {
+            codigoIntermedio.cerrarFicheroEscritura();
+            ctd.cerrarFicheroEscritura();
+            ctd2.cerrarFicheroEscritura();
+            traspasarLexemas();
+            opL.cerrarFicheroEscritura();
+            //copiar vector de lexic os procesador por flex hacia instrucciones de la tabla estatica
+            os.guardarVector(opL.getVector());
+            os.cerrarFicheroEscritura();
+            //copiar vector de la tabla y procesar en instruccions para la tabla dinamica
+            od.guardarVector(tabla.getVector());
+            od.cerrarFicheroEscritura();
+            
+        }
+        
+        void condicion(Expresion e, int n) {
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                "SALTAR_CONDICION",
+                String.valueOf(e.getDireccion()),
+                null,
+                "ELSE_" + String.valueOf(n)));
+            eV = e.etqVerdad;
+            eF = e.etqFalso;
+            condicionX = e;
+        }
+
+        void saltarEtiqueta(String eti, int n) {
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                "SALTAR_ETIQUETA",
+                null,
+                null,
+                eti + "_" + String.valueOf(n)));
+        }
+        
+        void ponerEtiqueta(String eti, int n) {
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                "ETIQUETA",
+                null,
+                null,
+                eti + "_" + String.valueOf(n)));
+        }
+        
+        void condicion2(Expresion e, int n) {
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                "SALTAR_CONDICION",
+                String.valueOf(e.getDireccion()),
+                null,
+                "FINBUCLE_" + String.valueOf(n)));
+        }
+        
+        void imprimirW(Expresion e) {
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                "IMPRIMIR_ENTERO",
+                String.valueOf(e.getDireccion()),
+                null,
+                null));
+            imprimirEntero = true;
+        }
+        
+        void imprimirS(String cadena, int cuenta) {
+            listaCadenas.addCadena(cadena);
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                "IMPRIMIR_CADENA",
+                "CADENA_" + String.valueOf(cuenta),
+                null,
+                null));
+        }
+        void paint(String cadena) {
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                "PAINTER",
+                "",
+                "",
+                cadena));
+        }
+        void temporizador(Expresion e) {
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                "TIMER",
+                String.valueOf(e.getDireccion()),
+                null,
+                null));
+        }
+        
+        void escribirPin(Expresion e1, Expresion e2) {
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                "ESCRIBIR_PIN",
+                String.valueOf(e1.getDireccion()),
+                String.valueOf(e2.getDireccion()),
+                null));
+        }
+
+        void generarCadenas() {
+            for(int i=0; i < listaCadenas.size(); i++) {
+                codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                    "PONER_CADENA",
+                    "CADENA_" + String.valueOf(i+1),
+                    null,
+                    listaCadenas.getCadena(i)));
+            }
+            if (imprimirEntero) {
+                    codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                    "PONER_ENTERO",
+                    null,
+                    null,
+                    null));
+            }
+            
+        }
+        void generarFootter() {
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                "BASE",
+                null,
+                null,
+                null));
+            
+        }
+
+        void generarCF() {
+            CodigoFinal codigoFinal = new CodigoFinal(codigoIntermedio, parser.nombreFichero);
+            try {
+                codigoFinal.traducirCodigo();
+            } catch(IOException e) {
+            }
+        }
+
+        void finPrograma() {
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                "FIN",
+                null,
+                null,
+                null));
+        }
+
+        void ponerHeader() {
+            codigoIntermedio.guardarCuadrupla(new Cuadrupla(
+                "PONER_HEADER",
+                null,
+                null,
+                null));
+        }
+:}
+
+parser code {:
+
+	static String nombreFichero;
+
+	//Inicia el parser
+	public static void main(String args[]) {
+                args = new String[] {"programa.c"};
+		if (args.length != 1)
+			System.out.println("No hay programa a procesar");
+		else {
+			try {
+				Yylex lexico = new Yylex(new FileReader(args[0]));
+				nombreFichero = (String)args[0];
+				new parser(lexico).parse();
+			}
+			catch (Exception e) {
+				System.out.println("El fichero del programa no existe o no esta abierto");
+			}
+		}
+	}
+
+      /*  public void pars(String ruta, String archivo) {
+            if (archivo.equals("")) {
+                System.out.println("No hay programa a procesar");
+            } else {
+                try {
+                    //Yylex lexico = new Yylex(new FileReader(ruta + archivo), archivo);
+                    Yylex lexico = new Yylex(new FileReader(ruta + archivo));
+                    nombreFichero = archivo;
+                    new parser(lexico).parse();
+                } catch (Exception e) {
+                    System.out.println("El fichero del programa no existe o no esta abierto");
+                }
+            }
+        }
+
+	// Muestra el texto de un error
+	public void report_error(String message) {
+		//System.err.println(message);
+                VentanaPrincipal.jTextArea2.append(message + "\n");
+	}*/
+        principales.IDE id;
+        public void pars( String archivo) {
+            if (archivo.equals("")) {
+                System.out.println("No hay programa a procesar");
+            } else {
+                try {
+                    //Yylex lexico = new Yylex(new FileReader(ruta + archivo), archivo);
+                    Yylex lexico = new Yylex(new FileReader( archivo));
+                    nombreFichero = archivo;
+                    new parser(lexico).parse();
+                } catch (Exception e) {
+                    System.out.println("El fichero del programa no existe o no esta abierto");
+                }
+            }
+        }
+
+	// Muestra el texto de un error
+	public void report_error(String message) {
+		//System.err.println(message);
+              //  VentanaPrincipal.jTextArea2.append(message + "\n");
+            principales.IDE.output.setText(principales.IDE.output.getText() + message+"\n");
+	}
+
+	// Muestra un error de sintaxis
+	public void syntax_error(Symbol actual) {
+		if (actual.sym == sym.EOF)
+			report_error("Linea :" + InformacionCodigo.linea + " Instruccion incompleta "+
+				       "Token : "+InformacionCodigo.token);
+		else
+			report_error("Linea: "+ InformacionCodigo.linea + " Error sintáctico "+
+				       "Token : "+InformacionCodigo.token);
+	}
+
+	// Muestra el texto de un error irrecuperable
+	public void report_fatal_error(String message, Object info) {
+                done_parsing();
+                report_error("No se puede recuperar el error previo");
+		System.err.println(message);
+	}
+
+	// Muestra un mensaje cuando no se puede seguir analizando
+	public void unrecovered_syntax_error(Symbol actual) {
+                System.err.println("Irrecuperable " + actual);
+	}
+
+	//Muestra un mensaje de error con linea, token y mensaje
+	public void error(String mensaje) {
+		report_error("ERROR -> Linea: "+InformacionCodigo.linea+" Lexema: "+InformacionCodigo.token+" "+mensaje);
+	}
+        
+        //determinar cuantos testigos debe analizar correctamente para considerar que larecuperación ha tenido exito.
+        protected final static int _error_sync_size = 3;
+        protected int error_sync_size() {
+                //System.out.println(":error_sync_size was called.");
+                return _error_sync_size;
+        }
+        
+        //version para depuracion
+        public void debug_message(String mess) {
+                System.err.println(mess);
+        }
+:}
+
+//Terminales
+terminal LPAREN, RPAREN, PTOCOMA, SUMA, RESTA, PRODUCTO, DIVISION, MENOR, MAYOR, MAYORI, MENORI, IGUAL, DISTINTO; 
+terminal OR, AND, ASIGNAR, LLLAVE, RLLAVE, INT, MAIN, CLASS, IF, ELSE, WHILE;
+terminal PRINTS, PRINTN, PINWRITER, TIMER, PAINTER; 
+terminal BREAK, COMA;
+terminal String ID;
+terminal String ENTERO;
+terminal String CADENATEXTO;
+
+// No terminales
+non terminal Programa, Declaraciones, Cuerpo, Body;
+non terminal Declaracion;
+non terminal BloqueSentencias;
+non terminal Sentencias, Sentencia;
+non terminal Expresion Expresion;
+non terminal Expresion Condicion;
+non terminal SentIf, SentElse;
+non terminal SentWhile;
+non terminal SentAsignacion;
+non terminal SentPrintS, SentPrintN, SentPinWriter, SentTimer;
+non terminal SentBreak;
+non terminal SentPainter;
+
+//Precedencias de los operadores
+precedence left ASIGNAR;
+precedence left OR, AND;
+precedence left IGUAL, DISTINTO, MAYORI, MAYOR, MENORI, MENOR;       
+precedence left SUMA, RESTA;
+precedence left PRODUCTO, DIVISION;
+precedence left LPAREN, RPAREN;
+precedence left ELSE;
+
+//Comienza con un no terminal
+
+start with Programa;
+
+//Aqui va la gramatica
+
+Programa ::=    {:
+                    inicializar();
+                :}
+                CLASS
+                {:
+                    ponerHeader();
+                :}
+                ID LLLAVE Body RLLAVE;
+
+Body ::= Declaraciones Cuerpo | Cuerpo;
+
+Declaraciones ::= Declaraciones Declaracion | Declaracion
+                | error {: 
+                        parser.report_error("Linea: " +(InformacionCodigo.linea-1) + "Error en la sentencia declarativa"); 
+                    :}
+                ;
+
+Declaracion ::= INT ID:id PTOCOMA
+                {:
+                    if(existeSimbolo(id)) {
+                        parser.error(Textos.simboloRedeclarado);
+                    } else {
+                        addSimbolo(id);
+                        cuentaDirecciones+=4;
+                        setDireccionSimbolo(id, cuentaDirecciones);
+                    }
+                :}
+                ;
+
+Cuerpo ::= MAIN {: System.out.println("main:"); ctd.guardarCTD(new Tres("main", "etiqueta"));ctd2.guardarCTD(new Tres("main", "etiqueta")); :} LPAREN RPAREN LLLAVE BloqueSentencias 
+                {:
+                    finPrograma();
+                    generarCadenas();
+                    generarFootter();
+                    cerrarCI();
+                    generarCF();
+                    //opL.imprimirTablaEstatica();
+                    //tabla.imprimirTablaDinamica();
+                :}
+                RLLAVE;
+
+BloqueSentencias ::= Sentencias | ;
+
+Sentencias ::= Sentencias Sentencia | Sentencia;
+
+Expresion ::= Expresion:e1 SUMA Expresion:e2
+                {:
+                    RESULT = suma(e1, e2);
+                :} |
+                Expresion:e1 RESTA Expresion:e2
+                {:
+                    RESULT = resta(e1, e2);
+                :} |
+                Expresion:e1 PRODUCTO Expresion:e2
+                {:
+                    RESULT = producto(e1, e2);
+                :} |
+                Expresion:e1 DIVISION Expresion:e2
+                {:
+                    RESULT = division(e1, e2);
+                :} |
+                ENTERO:e
+                {:
+                    RESULT = entero(e);
+                :} |
+                ID:id
+                {:
+                    if(existeSimbolo(id)) {
+                        RESULT = identificador(id);
+                    } else {
+                        parser.error(Textos.simboloNoDeclarado);
+                        RESULT = identificador(null);
+                    }
+                :} |
+                LPAREN Expresion:e RPAREN
+                {:
+                    RESULT = e;
+                :}
+                ;
+
+Condicion ::= Condicion:c1 OR {: System.out.println("label "+ c1.etqFalso); ctd.guardarCTD(new Tres(c1.etqFalso, "etiqueta"));ctd2.guardarCTD(new Tres(c1.etqFalso, "etiqueta")); :} Condicion:c2
+                {:
+                    RESULT = or(c1, c2);
+                    System.out.println("label "+ c1.etqVerdad);
+                    System.out.println("goto "+ c2.etqVerdad);
+                    ctd.guardarCTD(new Tres(c1.etqVerdad, "etiqueta"));
+                    ctd.guardarCTD(new Tres(c2.etqVerdad, "salto"));
+                    ctd2.guardarCTD(new Tres(c1.etqVerdad, "etiqueta"));
+                    ctd2.guardarCTD(new Tres(c2.etqVerdad, "salto"));
+                :} |
+                Condicion:c1 AND {: System.out.println("label "+ c1.etqVerdad); ctd.guardarCTD(new Tres(c1.etqVerdad, "etiqueta"));ctd2.guardarCTD(new Tres(c1.etqVerdad, "etiqueta")); :} Condicion:c2
+                {:
+                    RESULT = and(c1, c2);
+                    System.out.println("label "+ c1.etqFalso);
+                    System.out.println("goto "+ c2.etqFalso);
+                    ctd.guardarCTD(new Tres(c1.etqFalso, "etiqueta"));
+                    ctd.guardarCTD(new Tres(c2.etqFalso, "salto"));
+                    ctd2.guardarCTD(new Tres(c1.etqFalso, "etiqueta"));
+                    ctd2.guardarCTD(new Tres(c2.etqFalso, "salto"));
+                :} |
+                Expresion:e1 IGUAL Expresion:e2
+                {:
+                    RESULT = igual(e1, e2);
+                :} |
+                Expresion:e1 DISTINTO Expresion:e2
+                {:
+                    RESULT = distinto(e1, e2);
+                :} |
+                Expresion:e1 MAYOR Expresion:e2
+                {:
+                    RESULT = mayor(e1, e2);
+                :} |
+                Expresion:e1 MAYORI Expresion:e2
+                {:
+                    RESULT = mayorIgual(e1, e2);
+                :} |
+                Expresion:e1 MENOR Expresion:e2
+                {:
+                    RESULT = menor(e1, e2);
+                :} |
+                Expresion:e1 MENORI Expresion:e2
+                {:
+                    RESULT = menorIgual(e1, e2);
+                :} |
+                LPAREN Condicion:c RPAREN
+                {:
+                    RESULT = c;
+                :}
+                | error
+                {:
+                    parser.report_error("Linea: " + (InformacionCodigo.linea) + " error sintáctico Se espera una expresion o condicion"); 
+                :}
+                ;
+
+SentIf ::= IF LPAREN
+                {:  
+                    actualFinIf++;
+                    cuentaIf++;
+                    pilaIf .apilar(cuentaIf);
+                :}
+                Condicion:c 
+                {:
+                    condicion(c, pilaIf.verCima());
+                    System.out.println("label "+ c.etqVerdad);
+                    ctd.guardarCTD(new Tres(c.etqVerdad, "etiqueta"));
+                    ctd2.guardarCTD(new Tres(c.etqVerdad, "etiqueta"));
+                :}
+                RPAREN LLLAVE BloqueSentencias RLLAVE
+                {:
+                    saltarEtiqueta("FINIF", pilaIf.verCima());
+                    ponerEtiqueta("ELSE", pilaIf.verCima());
+                    System.out.println("goto "+ finIf()); 
+                    System.out.println("label "+ c.etqFalso);
+                    ctd.guardarCTD(new Tres(finIf(), "salto"));
+                    ctd.guardarCTD(new Tres(c.etqFalso, "etiqueta"));
+                    ctd2.guardarCTD(new Tres(finIf(), "salto"));
+                    ctd2.guardarCTD(new Tres(c.etqFalso, "etiqueta"));
+                :}
+                SentElse
+                {:
+                    ponerEtiqueta("FINIF", pilaIf.verCima());
+                    pilaIf.desapilar();
+                    System.out.println("label "+ finIf());
+                    ctd.guardarCTD(new Tres(finIf(), "etiqueta"));
+                    ctd2.guardarCTD(new Tres(finIf(), "etiqueta"));
+                :}
+                | error:e
+                {:
+                    parser.report_error("Linea:" + InformacionCodigo.linea + " Error sintáctico");
+                :}
+                //| IF error : e Condicion RPAREN LLLAVE BloqueSentencias RLLAVE SentElse
+                //{:
+                //    parser.report_error("Linea:" + (eleft+1) + " se esperaba paréntesis izquierdo en la sentencia \" if \""); 
+                //:}
+                ;
+
+SentElse ::= ELSE LLLAVE BloqueSentencias RLLAVE | ;
+
+SentWhile ::= WHILE LPAREN
+                    {:
+                        actualFinWhile++;
+                        cuentaBucle++;
+                        pilaBucle.apilar(cuentaBucle);
+                        ponerEtiqueta("BUCLE", pilaBucle.verCima());
+                        System.out.println("label "+ finWhile());
+                        ctd.guardarCTD(new Tres(finWhile(), "etiqueta"));
+                        ctd2.guardarCTD(new Tres(finWhile(), "etiqueta"));
+                    :}
+                    Condicion:c
+                    {:
+                        condicion2(c, pilaBucle.verCima());
+                        System.out.println("label "+ c.etqVerdad);
+                        ctd.guardarCTD(new Tres(c.etqVerdad, "etiqueta"));
+                        ctd2.guardarCTD(new Tres(c.etqVerdad, "etiqueta"));
+
+                    :}
+                    RPAREN LLLAVE 
+                    {:
+                        cuentaWhiles++;
+                    :}
+                    BloqueSentencias 
+                    {:
+                        cuentaWhiles--;
+                    :}
+                    RLLAVE
+                    {:
+                        saltarEtiqueta("BUCLE", pilaBucle.verCima());
+                        ponerEtiqueta("FINBUCLE", pilaBucle.verCima());
+                        pilaBucle.desapilar();
+                        System.out.println("goto "+ finWhile());
+                        System.out.println("label "+ c.etqFalso);
+                        ctd.guardarCTD(new Tres(finWhile(), "salto"));
+                        ctd.guardarCTD(new Tres(c.etqFalso, "etiqueta"));
+                        ctd2.guardarCTD(new Tres(finWhile(), "salto"));
+                        ctd2.guardarCTD(new Tres(c.etqFalso, "etiqueta"));
+                    :}
+                    ;
+
+SentAsignacion ::= ID:id
+                    {:
+                        if(existeSimbolo(id)) {
+                        } else {
+                            //parser.error(Textos.simboloNoDeclarado);
+                            parser.report_error("Linea:" + idleft + " error semántico no se ha declarado previamente " + id);
+                        }
+                    :}
+                     ASIGNAR Expresion:e PTOCOMA
+                    {:
+                        asignacion(id, e);
+                        setValorSimbolo(id, e.getResultado());
+                        System.out.println(id +" = "+ e.getValor());
+                        ctd.guardarCTD(new Tres(id, e.getValor(), e.getResultado(), "asignacion"));
+                        ctd2.guardarCTD(new Tres(CompLex.checarComponenteLexico(id), CompLex.checarComponenteLexico(e.getValor()), e.getResultado(),"asignacion"));
+                    :}
+                    ;
+
+SentPrintN ::= PRINTN LPAREN Expresion:e
+                    {:
+                        imprimirW(e);
+                        ctd.guardarCTD(new Tres(nuevaTmp(), e.getValor(), e.getResultado(), "asignacion"));
+                        ctd2.guardarCTD(new Tres(actualTmp(), CompLex.checarComponenteLexico(e.getValor()), e.getResultado(), "asignacion"));
+                        ctd.guardarCTD(new Tres(actualTmp(),"parametro"));
+                        ctd2.guardarCTD(new Tres(actualTmp(),"parametro"));
+                        ctd.guardarCTD(new Tres("printN", "printN"));
+                        ctd2.guardarCTD(new Tres("printN", "printN"));
+                        System.out.println(actualTmp() + "=" + CompLex.checarComponenteLexico(e.getValor()));
+                        System.out.println("Param " + actualTmp());
+                        System.out.println("call printN, 1");
+                        
+                    :}
+                    RPAREN PTOCOMA
+                    ;
+
+SentPrintS ::= PRINTS LPAREN CADENATEXTO:tex
+                    {:
+                        cuentaCadenas++;
+                        imprimirS(tex, cuentaCadenas);
+                        ctd.guardarCTD(new Tres(nuevaTmp(), tex, 0, "texto"));
+                        ctd2.guardarCTD(new Tres(actualTmp(), tex, 0, "texto"));
+                        ctd.guardarCTD(new Tres(actualTmp(), "parametro"));
+                        ctd2.guardarCTD(new Tres(actualTmp(), "parametro"));
+                        ctd.guardarCTD(new Tres("printS", "printS"));
+                        ctd2.guardarCTD(new Tres("printS", "printS"));
+                        System.out.println(actualTmp() + "=" + tex);
+                        System.out.println("Param " + actualTmp());
+                        System.out.println("call printS, 1");
+                    :}
+                    RPAREN PTOCOMA
+                    ;
+
+SentPinWriter ::= PINWRITER LPAREN Expresion:e1 COMA Expresion:e2 
+                    {:
+                        escribirPin(e1, e2);
+                        ctd.guardarCTD(new Tres(nuevaTmp(), e1.getValor(), e1.getResultado(), "asignacion"));
+                        ctd2.guardarCTD(new Tres(actualTmp(), CompLex.checarComponenteLexico(e1.getValor()), e1.getResultado(), "asignacion"));
+                        ctd.guardarCTD(new Tres(actualTmp(),"parametro"));
+                        ctd2.guardarCTD(new Tres(actualTmp(),"parametro"));
+                        ctd.guardarCTD(new Tres(nuevaTmp(), e2.getValor(), e2.getResultado(), "asignacion"));
+                        ctd2.guardarCTD(new Tres(actualTmp(), CompLex.checarComponenteLexico(e2.getValor()), e2.getResultado(), "asignacion"));
+                        ctd.guardarCTD(new Tres(actualTmp(),"parametro"));
+                        ctd2.guardarCTD(new Tres(actualTmp(),"parametro"));
+                        ctd.guardarCTD(new Tres("pinWriter", "pinWriter"));
+                        ctd2.guardarCTD(new Tres("pinWriter", "pinWriter"));
+                        System.out.println(actualTmp() + "=" + CompLex.checarComponenteLexico(e1.getValor()));
+                        System.out.println("Param " + actualTmp());
+                        System.out.println(actualTmp() + "=" + CompLex.checarComponenteLexico(e2.getValor()));
+                        System.out.println("Param " + actualTmp());
+                        System.out.println("call pinWriter, 2");
+                    :}
+                    RPAREN PTOCOMA
+                    ;
+
+SentTimer ::= TIMER LPAREN Expresion:e
+                    {:
+                        temporizador(e);
+                        ctd.guardarCTD(new Tres(nuevaTmp(), e.getValor(), e.getResultado(), "asignacion"));
+                        ctd2.guardarCTD(new Tres(actualTmp(), CompLex.checarComponenteLexico(e.getValor()), e.getResultado(), "asignacion"));
+                        ctd.guardarCTD(new Tres(actualTmp(), "parametro"));
+                        ctd2.guardarCTD(new Tres(actualTmp(), "parametro"));
+                        ctd.guardarCTD(new Tres("timer", "timer"));
+                        ctd2.guardarCTD(new Tres("timer", "timer"));
+                        System.out.println(actualTmp() + "=" + CompLex.checarComponenteLexico(e.getValor()));
+                        System.out.println("Param " + actualTmp());
+                        System.out.println("call timer, 1");
+                    :}
+                    RPAREN PTOCOMA;
+
+SentBreak ::= BREAK 
+                    {:
+                        if(cuentaWhiles > 0) {
+                        } else {
+                            parser.error(Textos.breakSinWhile);
+                        }
+                    :}
+                PTOCOMA
+                    ;
+SentPainter ::= PAINTER LPAREN CADENATEXTO:tex
+                    {:
+                        //cuentaCadenas++;
+                        paint(tex);
+                        ctd.guardarCTD(new Tres(nuevaTmp(), tex, 0, "texto"));
+                        ctd2.guardarCTD(new Tres(actualTmp(), tex, 0, "texto"));
+                        ctd.guardarCTD(new Tres(actualTmp(), "parametro"));
+                        ctd2.guardarCTD(new Tres(actualTmp(), "parametro"));
+                        ctd.guardarCTD(new Tres("painter", "painter"));
+                        ctd2.guardarCTD(new Tres("painter", "painter"));
+                        System.out.println(actualTmp() + "=" + tex);
+                        System.out.println("Param " + actualTmp());
+                        System.out.println("call painter, 1");
+                    :}
+                    RPAREN PTOCOMA
+                    ;
+
+Sentencia ::=   SentIf |
+                SentWhile |
+                SentAsignacion |
+                SentPrintN |
+                SentPrintS |
+                SentPinWriter |
+                SentTimer |
+                SentBreak |
+                SentPainter;

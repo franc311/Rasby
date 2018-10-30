@@ -1,0 +1,253 @@
+package Compilador; 
+import Compilador.CompLex;
+import Compilador.InformacionCodigo;
+import Compilador.Lexema;
+import Compilador.Lexicos;
+import java_cup.runtime.Symbol;  
+import java.lang.System;
+import java.io.*;
+import java.util.Vector;
+
+
+%%
+%full
+%unicode
+%line
+%column
+%cup
+%char
+%state COMENTARIO
+%{
+        int comentarioAnidado = 0;
+        String nombre="";
+	String tok = "";
+        int idCon = -1; //inicializar en 0 por la identificacion de la clase...
+        int numCon = 0;
+        //OutputLexico ol;
+        /*
+        Yylex(java.io.Reader scanner, String archivo) {
+            this.zzReader = scanner;
+            String nombre = archivo.substring(0, archivo.lastIndexOf("."));
+            ol = new OutputLexico(nombre + ".lex");
+            try {
+                ol.abrirFicheroEscritura();
+            } catch(IOException e) {
+                System.out.println(Textos.ficheroCiNoExiste);
+                System.out.println("pinche error");
+                ol.cerrarFicheroEscritura();
+               
+            }
+        }
+        */
+	private Symbol Token(int token, Object lexema) throws IOException {
+		int linea = yyline + 1;
+                int columna = yycolumn + 1;
+		tok = (String)lexema;
+		if (token != sym.EOF) {
+			InformacionCodigo.guardarInformacionCodigo(linea,tok);
+                        if(!CompLex.existeLexema(tok)) {
+                            if(token == sym.ID) {
+                                CompLex.guardarLexema(new Lexema(tok, nuevoId(), "identificador"));
+                            }
+                            if(token == sym.ENTERO) {
+                                CompLex.guardarLexema(new Lexema(tok, nuevoNum(), "numero"));
+                            }
+                        }
+                    //ol.guardarLexico(new Lexema(tok, checarComponenteLexico(token), "", "", String.valueOf(linea), String.valueOf(columna)));
+                    Lexicos.lex(new Lexema(tok, checarComponenteLexico(token), "", "", String.valueOf(linea), String.valueOf(columna)));
+                } else {
+                    //ol.cerrarFicheroEscritura();
+                }
+		return new Symbol(token, yyline, yycolumn, lexema);
+	}
+
+	private Symbol Token(int token) throws IOException {
+		return Token(token, yytext());
+	}
+        private String nuevoId() {
+            return "ID" + (++idCon);
+        }
+        private String nuevoNum() {
+            return "NUM" + (++numCon);
+        }
+        private String checarComponenteLexico(int tipoLexema) {
+            String componenteLexico = "";
+            switch(tipoLexema) {
+                case sym.LPAREN:
+                    componenteLexico = "operador de agrupación";
+                    break;
+                case sym.RPAREN:
+                    componenteLexico = "operador de agrupación";
+                    break;
+                case sym.PTOCOMA:
+                    componenteLexico = "delimitador";
+                    break;
+                case sym.SUMA:
+                    componenteLexico = "operador aritmetico";
+                    break;
+                case sym.RESTA:
+                    componenteLexico = "operador aritmetico";
+                    break;
+                case sym.PRODUCTO:
+                    componenteLexico = "operador aritmetico";
+                    break;
+                case sym.DIVISION:
+                    componenteLexico = "operador aritmetico";
+                    break;
+                case sym.MENOR:
+                    componenteLexico = "operador relacional";
+                    break;
+                case sym.MAYOR:
+                    componenteLexico = "operador relacional";
+                    break;
+                case sym.MAYORI:
+                    componenteLexico = "operador relacional";
+                    break;
+                case sym.MENORI:
+                    componenteLexico = "operador relacional";
+                    break;
+                case sym.IGUAL:
+                    componenteLexico = "operador relacional";
+                    break;
+                case sym.DISTINTO:
+                    componenteLexico = "operador relacional";
+                    break;
+                case sym.OR:
+                    componenteLexico = "operador lógico";
+                    break;
+                case sym.AND:
+                    componenteLexico = "operador lógico";
+                    break;
+                case sym.ASIGNAR:
+                    componenteLexico = "operador de asignación";
+                    break;
+                case sym.LLLAVE:
+                    componenteLexico = "operador de agrupación";
+                    break;
+                case sym.RLLAVE:
+                    componenteLexico = "operador de agrupación";
+                    break;
+                case sym.INT:
+                    componenteLexico = "palabra reservada";
+                    break;
+                case sym.MAIN:
+                    componenteLexico = "palabra reservada";
+                    break;
+                case sym.CLASS:
+                    componenteLexico = "palabra reservada";
+                    break;
+                case sym.IF:
+                    componenteLexico = "palabra reservada";
+                    break;
+                case sym.ELSE:
+                    componenteLexico = "palabra reservada";
+                    break;
+                case sym.WHILE:
+                    componenteLexico = "palabra reservada";
+                    break;
+                case sym.PRINTS:
+                    componenteLexico = "palabra reservada";
+                    break;
+                case sym.PRINTN:
+                    componenteLexico = "palabra reservada";
+                    break;
+                case sym.PINWRITER:
+                    componenteLexico = "palabra reservada";
+                    break;
+                case sym.TIMER:
+                    componenteLexico = "palabra reservada";
+                    break;
+                case sym.BREAK:
+                    componenteLexico = "palabra reservada";
+                    break;
+                case sym.COMA:
+                    componenteLexico = "delimitador";
+                    break;
+                case sym.CADENATEXTO:
+                    componenteLexico = "cadena de texto";
+                    break;
+                case sym.ID:
+                    componenteLexico = "identificador";
+                    break;
+                case sym.ENTERO:
+                    componenteLexico = "número";
+                    break;
+                default:
+                    break;
+            }
+            return componenteLexico;
+        }
+
+%}
+%eofval{
+    {
+        if (comentarioAnidado > 0) {
+            System.out.println("Error Léxico, no se ha cerrado un comentario");
+            comentarioAnidado = 0;
+        } else {
+            return Token(sym.EOF);
+        }
+    }
+%eofval}
+
+Digito = [0-9]
+Letra = [A-Za-z_]
+CadenaTexto = \"([\x20-\x21\x23-\xFE])*\"
+
+%%
+<YYINITIAL,COMENTARIO>	\r\n|\r|\n                      { }
+<YYINITIAL,COMENTARIO>	"/*"                            { 
+                                                        	yybegin(COMENTARIO);
+                                                         	comentarioAnidado++;
+                                                        }
+<COMENTARIO>		"*/"                            {
+                                                            comentarioAnidado--;
+                                                            if(comentarioAnidado == 0) yybegin(YYINITIAL);
+                                                        }
+<YYINITIAL>		"*/"                            { 
+                                                            System.out.println("ERROR LEXICO, Se intenta cerrar un comentario no abierto");
+                                                        }
+<COMENTARIO>		[^/*]                           { }
+<COMENTARIO>		[/*]                            { }
+<YYINITIAL>             "("                             { return Token(sym.LPAREN); }
+<YYINITIAL>             ")"                             { return Token(sym.RPAREN); }
+<YYINITIAL>             ";"                             { return Token(sym.PTOCOMA); }
+<YYINITIAL>             "+"                             { return Token(sym.SUMA); }
+<YYINITIAL>             "-"                             { return Token(sym.RESTA); }
+<YYINITIAL>             "*"                             { return Token(sym.PRODUCTO); }
+<YYINITIAL>             "/"                             { return Token(sym.DIVISION); }
+<YYINITIAL>             "<"                             { return Token(sym.MENOR); }
+<YYINITIAL>             "<="                            { return Token(sym.MENORI); }
+<YYINITIAL>             ">"                             { return Token(sym.MAYOR); }
+<YYINITIAL>             ">="                            { return Token(sym.MAYORI); }
+<YYINITIAL>             "=="                            { return Token(sym.IGUAL); }
+<YYINITIAL>             "!="                            { return Token(sym.DISTINTO); }  
+<YYINITIAL>             "||"                            { return Token(sym.OR); }
+<YYINITIAL>             "&&"                            { return Token(sym.AND); }
+<YYINITIAL>             "="                             { return Token(sym.ASIGNAR); }
+<YYINITIAL>             "{"                             { return Token(sym.LLLAVE); }
+<YYINITIAL>             "}"                             { return Token(sym.RLLAVE); }
+<YYINITIAL>             "int"                           { return Token(sym.INT); }
+<YYINITIAL>             "main"                          { return Token(sym.MAIN); }
+<YYINITIAL>             "class"                         { return Token(sym.CLASS); }
+<YYINITIAL>             "if"                            { return Token(sym.IF); }
+<YYINITIAL>             "else"                          { return Token(sym.ELSE); }
+<YYINITIAL>             "while"                         { return Token(sym.WHILE); }
+<YYINITIAL>             "printS"                        { return Token(sym.PRINTS); }
+<YYINITIAL>             "printN"                        { return Token(sym.PRINTN); }
+<YYINITIAL>             "pinWriter"                     { return Token(sym.PINWRITER); }
+<YYINITIAL>             "painter"                       { return Token(sym.PAINTER); }
+<YYINITIAL>             "timer"                         { return Token(sym.TIMER); }
+<YYINITIAL>             "break"                         { return Token(sym.BREAK); }
+<YYINITIAL>             ","                             { return Token(sym.COMA); }
+<YYINITIAL>             {CadenaTexto}   		{ return Token(sym.CADENATEXTO, yytext()); }
+<YYINITIAL>             {Letra}({Letra}|{Digito})*	{ return Token(sym.ID, yytext()); }
+<YYINITIAL>             {Digito}+			{ return Token(sym.ENTERO, yytext()); }
+<YYINITIAL>             (" "|\n|\t|\r)+                 { }
+<YYINITIAL>             . {System.out.println("Linea: " + (yyline+1) + "Error léxico, Carácter no permitido: "+yytext());
+                            principales.IDE.output.setText("Linea: " + (yyline+1) + "Error léxico, Carácter no permitido: "+yytext());}
+/*
+<YYINITIAL>             . { System.err.println("Linea: " + (yyline+1) + " Carácter no permitido: "+yytext());
+                            VentanaPrincipal.jTextArea2.append("Linea: " + (yyline+1) + "Error léxico, Carácter no permitido: "+yytext());}
+*/
+

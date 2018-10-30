@@ -1,0 +1,156 @@
+CARGAR_DIRECCION OP NULL RES
+LDR	R5, [SP, #20]
+LDR	R1, [R5, #”+op1+”]
+STR	R1, [R5, #”+res+”]
+
+CARGAR_VALOR OP NULL RES
+LDR	R5, [SP, #20]
+MOV	R1, #”+op1+”
+STR	R1, [R5, #”+res+”]
+
+SUMAR OP1 OP2 RES
+LDR	R5, [SP, #20]
+LDR	R1, [R5, #”+op1+”]
+LDR	R2, [R5, #”+op2+”]
+ADD	R3, R1, R2
+STR	R3, [R5, #”+res+”]
+
+RESTAR OP1 OP2 RES
+LDR	R5, [SP, #20]
+LDR	R1, [R5, #”+op1+”]
+LDR	R2, [R5, #”+op2+”]
+SUB	R3, R1, R2
+STR	R3, [R5, #”+res+”]
+
+MULTIPLICAR OP1 OP2 RES
+LDR	R5, [SP, #20]
+LDR	R1, [R5, #”+op1+”]
+LDR	R2, [R5, #”+op2+”]
+MUL	R3, R1, R2
+STR	R3, [R5, #”+res+”]
+
+DIVIDIR OP1 OP2 RES
+LDR	R5, [SP, #20]
+LDR 	R1, [R5, #”+op1+”]
+LDR 	R2, [R5, #”+op2+”]
+MOV	R4, R2
+CMP	R4, R1, LSR #1
+LOOP2:
+MOVLS RR, R4, LSL #1
+CMP R4, R1, LSR #1
+BLS	LOOP2
+MOV	R3, #0
+LOOP3:
+CMP	R1, R4
+SUBHS R1, R1, R4
+ADC	R3, R3, R3
+MOV	R4, R4, LSR #1
+CMP	R4, R2
+BHS	LOOP3
+STR	R3, [R5, #”+res+”]
+
+OR OP1 OP2 RES
+LDR	R5, [SP, #20]
+LDR	R1, [R5, #”+op1+”]
+LDR	R2, [R5, #”+op2+”]
+ORR	R3, R1, R2
+STR	R3, [R5, #”+res+”]
+
+AND OP1 OP2 RES
+LDR	R5, [SP, #20]
+LDR	R1, [R5, #”+op1+”]
+LDR	R2, [R5, #”+op2+”]
+AND	R3, R1, R2
+STR	R3, [R5, #”+res+”]
+
+MENOR OP1 OP2 RES
+LDR	R5, [SP, #20]
+LDR	R1, [R5, #”+op1+”]
+LDR	R2, [R5, #”+op2+”]
+CMP	R1, R2
+MOVPL R3, #0
+MOVMI R3, #1
+MOVEQ R3, #0
+STR	R3, [R5, #”+res+”]
+
+MAYOR OP1 OP2 RES
+LDR	R5, [SP, #20]
+LDR	R1, [R5, #”+op1+”]
+LDR	R2, [R5, #”+op2+”]
+CMP	R2, R1
+MOVPL R3, #0
+MOVMI R3, #1
+MOVEQ R3, #0
+STR	R3, [R5, #”+res+”]
+
+IGUAL OP1 OP2 RES
+LDR	R5, [SP, #20]
+LDR	R1, [R5, #”+op1+”]
+LDR	R2, [R5, #”+op2+”]
+CMP	R1, R2
+MOVEQ R3, #1
+MOVNE R3, #0
+STR	R3, [R5, #”+res+”]
+
+
+DISTINTO OP1 OP2 RES
+LDR	R5, [SP, #20]
+LDR	R1, [R5, #”+op1+”]
+LDR	R2, [R5, #”+op2+”]
+CMP	R1, R2
+MOVEQ R3, #0
+MOVNE R3, #1
+STR	R3, [R5, #”+res+”]
+
+ETIQUETA NULL NULL RES
++res + “:” + linea
+
+SALTAR_CONDICION OP1 NULL RES
+LDR	R5, [SP, #20]
+LDR	R1, [R5, #”+op1+”]
+CMP	R1, #0
+BEQ	“+res
+
+SALTAR_ETIQUETA NULL NULL RES
+“B ” + res
+
+IMPRIMIR_ENTERO OP1 NULL NULL
+LDR	R5, [SP, #20]
+LDR	R0, [R5, #”+op1+”]
+MOV	R1, #0
+MOV	R1, R0
+LDR	R0, =imprimir_entero
+BL	printf
+MOV	R0, #0
+=================header
+.extern	printf
+=================
+………………………………label
+imprimir_entero:
+	.ascii “%d\\0”
+	.align 4
+……………………………….
+
+
+IMPRIMIR_CADENA OP1 NULL RESS
+LDR	R0, =”+op1+”
+BL	printf
+MOV	R0, #0
+
+PONER_CADENA OP! NULL RES
+Op1 + “:”
+“.ascii \””+res+”\”\\0”
+“.align 4”
+
+
+
+mov r3, #1
+wait2:
+mov r2, #0x11000000
+wait1:
+sub r2, #1
+cmp r2, #0
+bne wait1
+sub r3, #1
+cmp r3, #0
+bne wait2
